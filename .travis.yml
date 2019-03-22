@@ -2,7 +2,6 @@ dist: trusty
 sudo: required
 language: bash
 before_install:
-- apt-get update && apt-get install curl -qq
 - curl https://raw.githubusercontent.com/express42/otus-homeworks/2019-02/run.sh | bash
 notifications:
   slack:
