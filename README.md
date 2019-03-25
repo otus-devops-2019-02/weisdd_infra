@@ -1,9 +1,6 @@
 # weisdd_infra
 weisdd Infra repository
 
-bastion_IP = 35.198.167.169
-someinternalhost_IP = 10.156.0.3
-
 ## HW 5 (VPN)
 
 ### Подключение к someinternalhost одной командой:
