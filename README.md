@@ -114,3 +114,171 @@ Source-сеть нет необходимости указывать явно - 
 testapp_IP = 35.241.192.113
 testapp_port = 9292
 ```
+
+## HW 7 (Packer)
+
+### Основное задание
+После установки Packer (https://www.packer.io/downloads.html) было необходимо настроить Application Default Credentials (ADC), чтобы Packer мог обращаться к GCP через API:
+```
+$ gcloud auth application-default login
+```
+
+В файле ubuntu16.json были описаны инструкции для packer builder для подготовки образа Ubuntu с предустановленными Ruby и MongoDB. Сама установка выполняется при помощи т.н. provisioners, в данном случае имеющих воплощение в виде скриптов:
+```
+    "provisioners": [
+        {
+            "type": "shell",
+            "script": "scripts/install_ruby.sh",
+            "execute_command": "sudo {{.Path}}"
+        },
+        {
+            "type": "shell",
+            "script": "scripts/install_mongodb.sh",
+            "execute_command": "sudo {{.Path}}"
+        }
+    ]
+```
+
+Проверка .json-файла на ошибки:
+```
+$ packer validate ./ubuntu16.json```
+```
+Запуск создания образа:
+```
+$ packer build ubuntu16.json
+```
+Деплой приложения:
+```
+$ git clone -b monolith https://github.com/express42/reddit.git
+$ cd reddit && bundle install
+$ puma -d
+```
+
+Важный момент: в секции builders можно задать network tags (tags), но они будут применяться только для instance, в котором подготавливается образ.
+Для всех машин, которые позднее будут использовать этот образ, тэги нужно задавать отдельно при создании этих машин.
+
+### Самостоятельные задания
+Параметризация шаблона с использованием пользовательских переменных (в т.ч. для описание образа, размера диска, названия сети, тэгов):
+```
+{
+    "variables": {
+        "project_id": null,
+        "source_image_family": null,
+        "machine_type": "f1-micro",
+        "image_description": "no description",
+        "disk_size": "10",
+        "network": "default",
+        "tags": "puma-server"
+    },
+    "builders": [
+        {
+            "type": "googlecompute",
+            "project_id": "{{ user `project_id` }}",
+            "image_name": "reddit-base-{{timestamp}}",
+            "image_family": "reddit-base",
+            "source_image_family": "{{ user `source_image_family` }}",
+            "zone": "europe-west1-b",
+            "ssh_username": "appuser",
+            "machine_type": "{{ user `machine_type` }}",
+            "image_description": "{{ user `image_description` }}",
+            "disk_size": "{{ user `disk_size` }}",
+            "network": "{{ user `network` }}",
+            "tags": "{{ user `tags` }}"
+        }
+    ],
+    "provisioners": [
+        {
+            "type": "shell",
+            "script": "scripts/install_ruby.sh",
+            "execute_command": "sudo {{.Path}}"
+        },
+        {
+            "type": "shell",
+            "script": "scripts/install_mongodb.sh",
+            "execute_command": "sudo {{.Path}}"
+        }
+    ]
+}
+```
+Сами переменные заданы в variables.json:
+```
+{
+  "project_id": "infra-12345",
+  "source_image_family": "ubuntu-1604-lts",
+  "machine_type": "f1-micro",
+  "image_description": "base image for reddit",
+  "disk_size": "10",
+  "network": "default",
+  "tags": "puma-server"
+}
+```
+Проверить корректность можно следующим образом:
+```
+$ packer inspect -var-file=variables.json.example ubuntu16.json
+```
+
+### Задание со * №1
+Подготовка baked-образа, который включает установленное приложение + systemd unit для puma.
+Этот шаблон описан в двух файлах: immutable.json и variables_full.json.
+Основные отличия по сравнению с предыдущим образом (reddit-base):
+В builders изменилось image_name и image_family, чтобы мы могли отличить reddit-base от reddit-full:
+```
+    "builders": [
+        {
+            "image_name": "reddit-full-{{timestamp}}",
+            "image_family": "reddit-full",
+        }
+    ],
+```
+Поскольку мы будем создавать шаблон поверх reddit-base, старые скрипты из секции provisioners дублировать не нужно.
+На их смену пришли:
+* деплой файла с описанием systemd unit (на основе: https://github.com/puma/puma/blob/master/docs/systemd.md). Packer рекомендует осуществлять последующую настройку привелегий и перенос файла при помощи скриптов;
+* скрипт, который скачивает приложение в домашнюю директорию appuser;
+* скрипт, который переносит puma.service в нужную директорию, меняет привилегии, активирует автозапуск демона.
+```
+    "provisioners": [
+        {
+            "type": "file",
+            "source": "files/puma.service",
+            "destination": "/home/appuser/puma.service"
+        },
+        {
+            "type": "shell",
+            "script": "scripts/deploy_app.sh"
+        },
+        {
+            "type": "shell",
+            "script": "scripts/install_puma_service.sh",
+            "execute_command": "sudo {{.Path}}"
+        }
+    ]
+```
+variables_full.json (см. source_image_family):
+```
+    {
+      "project_id": "infra-12345",
+      "source_image_family": "reddit-base",
+      "machine_type": "f1-micro",
+      "image_description": "baked image for reddit",
+      "disk_size": "10",
+      "network": "default",
+      "tags": "puma-server"
+    }
+```
+
+Создание образа:
+```
+$ packer build -var-file=variables_full.json immutable.json
+```
+
+### Задание со * №2
+Скрипт create-reddit-vm.sh для создания VM с приложением при помощи gcloud.
+Чтобы имя instance было уникальным, к reddit-app- добавляется текущая дата, время и случайное число:
+```
+#!/bin/bash
+set -e
+
+# generating random id
+id=$(date +'%Y%m%d%H%M%S')$RANDOM
+gcloud compute instances create reddit-app-$id --image-family=reddit-full --machine-type=f1-micro --tags=puma-server
+```

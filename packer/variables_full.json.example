@@ -1,0 +1,9 @@
+{
+  "project_id": "infra-12345",
+  "source_image_family": "reddit-base",
+  "machine_type": "f1-micro",
+  "image_description": "baked image for reddit",
+  "disk_size": "10",
+  "network": "default",
+  "tags": "puma-server"
+}
