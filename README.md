@@ -110,12 +110,7 @@ gcloud compute firewall-rules create default-puma-server --action=allow --rules 
 Source-сеть нет необходимости указывать явно - 0.0.0.0/0 - значение по умолчанию.
 
 ### Информация о подключении
-```
 
-testapp_IP =
-146.148.121.82
+testapp_IP = 146.148.121.82
 
-testapp_port =
-9292
-
-```
+testapp_port = 9292
