@@ -50,6 +50,7 @@ Host someinternalhost
 ```
 
 ### Ещё одна вариация ~/.ssh/config
+
 Как вариант, можно определить алиас для bastion и ссылаться на него при описании внутренних узлов - в таком случае не нужно постоянно ссылаться на identity bastion'а:
 
 ```plain
@@ -85,7 +86,7 @@ someinternalhost_IP = 10.132.0.3
 
 Ключевые моменты:
 
-- startup-скрипты запускаются от root'а (https://cloud.google.com/compute/docs/startupscript#startup_script_execution), соответственно нужно держать в голове, что и от чьего имени мы хотим исполнить. Для исполнения команд от имени другого пользователя подойдет runuser или su (https://www.cyberciti.biz/open-source/command-line-hacks/linux-run-command-as-different-user/). Пример:
+- startup-скрипты запускаются от root'а [док](https://cloud.google.com/compute/docs/startupscript#startup_script_execution), соответственно нужно держать в голове, что и от чьего имени мы хотим исполнить. Для исполнения команд от имени другого пользователя подойдет runuser или su [док](https://www.cyberciti.biz/open-source/command-line-hacks/linux-run-command-as-different-user/). Пример:
 
 ```bash
 runuser -l appuser -c 'git clone -b monolith https://github.com/express42/reddit.git'
