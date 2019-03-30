@@ -1,3 +1,7 @@
-packer/variables.json
-packer/variables_full.json
-.idea/
+*.tfstate
+*.tfstate.*.backup
+*.tfstate.backup
+*.tfvars
+.terraform/
+/packer/variables.json
+/packer/variables_full.json
