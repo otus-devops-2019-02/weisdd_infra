@@ -4,7 +4,7 @@ terraform {
 }
 
 provider "google" {
-  # Верссия провайдера
+  # Версия провайдера
   version = "2.0.0"
 
   # ID проекта
