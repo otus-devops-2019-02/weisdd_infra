@@ -1,11 +1,10 @@
 resource "google_compute_instance_group" "ig-reddit-app" {
   name        = "ig-reddit-app"
   description = "Reddit app instance group"
-//  base_instance_name = "reddit-app"
 
   instances = [
-    "${google_compute_instance.app.self_link}",
-//    "${google_compute_instance.test2.self_link}",
+//    "${google_compute_instance.app.self_link}",
+    "${google_compute_instance.app.*.self_link}",
   ]
 
   named_port {
@@ -19,7 +18,7 @@ resource "google_compute_instance_group" "ig-reddit-app" {
 resource "google_compute_http_health_check" "reddit-http-basic-check" {
   name         = "reddit-http-basic-check"
   request_path = "/"
-  port = 9292
+  port         = 9292
 }
 
 resource "google_compute_backend_service" "bs-reddit-app" {
@@ -30,8 +29,8 @@ resource "google_compute_backend_service" "bs-reddit-app" {
   enable_cdn  = false
 
   backend {
-    group = "${google_compute_instance_group.ig-reddit-app.self_link}"
-    balancing_mode = "UTILIZATION"
+    group           = "${google_compute_instance_group.ig-reddit-app.self_link}"
+    balancing_mode  = "UTILIZATION"
     max_utilization = 0.8
   }
 
@@ -39,8 +38,8 @@ resource "google_compute_backend_service" "bs-reddit-app" {
 }
 
 resource "google_compute_url_map" "urlmap-reddit-app" {
-  name = "urlmap-reddit-app"
-  description = "URL-map to redirect traffic to the backend service"
+  name            = "urlmap-reddit-app"
+  description     = "URL-map to redirect traffic to the backend service"
 
   default_service = "${google_compute_backend_service.bs-reddit-app.self_link}"
 
@@ -53,8 +52,8 @@ resource "google_compute_target_http_proxy" "http-lb-proxy-reddit-app" {
 }
 
 resource "google_compute_global_forwarding_rule" "fr-reddit-app" {
-  name       = "website-forwarding-rule"
+  name        = "website-forwarding-rule"
   description = "Forwarding rule"
-  target     = "${google_compute_target_http_proxy.http-lb-proxy-reddit-app.self_link}"
-  port_range = "80"
+  target      = "${google_compute_target_http_proxy.http-lb-proxy-reddit-app.self_link}"
+  port_range   = "80"
 }
