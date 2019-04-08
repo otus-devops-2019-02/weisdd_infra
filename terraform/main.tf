@@ -78,5 +78,6 @@ resource "google_compute_firewall" "firewall_puma" {
 
 resource "google_compute_project_metadata_item" "default" {
   key   = "ssh-keys"
-  value = "${chomp(file(var.public_key_path))}\n${chomp(file(var.public_key_path2))}\n${chomp(file(var.public_key_path3))}"
+  # value = "${chomp(file(var.public_key_path))}\n${chomp(file(var.public_key_path2))}\n${chomp(file(var.public_key_path3))}"
+  value = "${chomp(file(var.public_key_path))}"
 }
