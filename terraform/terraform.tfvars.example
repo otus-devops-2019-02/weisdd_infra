@@ -2,8 +2,14 @@ project = "infra-12345"
 
 public_key_path = "~/.ssh/appuser.pub"
 
+public_key_path2 = "~/.ssh/temp_keys/appuser2.pub"
+
+public_key_path3 = "~/.ssh/temp_keys/appuser3.pub"
+
 disk_image = "reddit-base"
 
 region = "europe-west-1"
 
 private_key_path = "~/.ssh/appuser"
+
+number_of_instances = 1

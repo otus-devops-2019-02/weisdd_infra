@@ -29,7 +29,7 @@ variable "private_key_path" {
 
 variable "zone" {
   description = "Zone"
-  default = "europe-west1-b"
+  default     = "europe-west1-b"
 }
 
 variable "number_of_instances" {

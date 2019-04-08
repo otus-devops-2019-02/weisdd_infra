@@ -3,7 +3,7 @@ resource "google_compute_instance_group" "ig-reddit-app" {
   description = "Reddit app instance group"
 
   instances = [
-//    "${google_compute_instance.app.self_link}",
+    //    "${google_compute_instance.app.self_link}",
     "${google_compute_instance.app.*.self_link}",
   ]
 
@@ -38,11 +38,10 @@ resource "google_compute_backend_service" "bs-reddit-app" {
 }
 
 resource "google_compute_url_map" "urlmap-reddit-app" {
-  name            = "urlmap-reddit-app"
-  description     = "URL-map to redirect traffic to the backend service"
+  name        = "urlmap-reddit-app"
+  description = "URL-map to redirect traffic to the backend service"
 
   default_service = "${google_compute_backend_service.bs-reddit-app.self_link}"
-
 }
 
 resource "google_compute_target_http_proxy" "http-lb-proxy-reddit-app" {
@@ -55,5 +54,5 @@ resource "google_compute_global_forwarding_rule" "fr-reddit-app" {
   name        = "website-forwarding-rule"
   description = "Forwarding rule"
   target      = "${google_compute_target_http_proxy.http-lb-proxy-reddit-app.self_link}"
-  port_range   = "80"
+  port_range  = "80"
 }
