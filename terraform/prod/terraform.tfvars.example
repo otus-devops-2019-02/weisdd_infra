@@ -8,7 +8,7 @@ public_key_path3 = "~/.ssh/appuser.pub"
 
 disk_image = "reddit-base"
 
-region = "europe-west-1"
+region = "europe-west1"
 
 private_key_path = "~/.ssh/appuser"
 
