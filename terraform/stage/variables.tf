@@ -45,3 +45,8 @@ variable "zone" {
 variable "number_of_instances" {
   description = "Number of reddit-app instances (count)"
 }
+
+variable "location" {
+  description = "Bucket location"
+  default = "europe-west1"
+}

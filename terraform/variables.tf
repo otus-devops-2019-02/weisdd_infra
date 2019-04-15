@@ -6,4 +6,3 @@ variable "region" {
   description = "Region"
   default     = "europe-west-1"
 }
-

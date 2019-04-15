@@ -6,8 +6,7 @@ provider "google" {
 module "storage-bucket" {
   source = "SweetOps/storage-bucket/google"
   version = "0.1.1"
-  # Имена поменяйте на другие
-  name = ["storage-bucket-test11111111111111", "storage-bucket-test211111111111111111"]
+  name = ["terraform-prod-state-bucket", "terraform-stage-state-bucket"]
 }
 output storage-bucket_url {
   value = "${module.storage-bucket.url}"
