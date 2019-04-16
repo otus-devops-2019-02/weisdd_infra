@@ -7,11 +7,11 @@ resource "google_storage_bucket" "terraform_state_prod" {
   }
 
   lifecycle {
-//    prevent_destroy = true
+    //    prevent_destroy = true
     prevent_destroy = false
   }
 
-//  force_destroy = false
+  //  force_destroy = false
   force_destroy = true
 }
 
@@ -21,3 +21,4 @@ resource "google_storage_bucket" "terraform_state_prod" {
 //    prefix  = "terraform/state/prod"
 //  }
 //}
+

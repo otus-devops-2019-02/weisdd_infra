@@ -15,10 +15,12 @@ provider "google" {
 module "app" {
   source              = "../modules/app"
   public_key_path     = "${var.public_key_path}"
+  private_key_path    = "${var.private_key_path}"
   zone                = "${var.zone}"
   region              = "${var.region}"
   app_disk_image      = "${var.app_disk_image}"
   number_of_instances = "${var.number_of_instances}"
+  database_url        = "${module.db.db_internal_ip}:27017"
 }
 
 module "db" {
@@ -31,5 +33,7 @@ module "db" {
 module "vpc" {
   source          = "../modules/vpc"
   public_key_path = "${var.public_key_path}"
-  source_ranges   = ["87.67.21.62/32"]
+
+  //  source_ranges   = ["87.67.21.62/32"]
+  source_ranges = ["0.0.0.0/0"]
 }

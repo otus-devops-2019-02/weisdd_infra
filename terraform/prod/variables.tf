@@ -48,5 +48,5 @@ variable "number_of_instances" {
 
 variable "location" {
   description = "Bucket location"
-  default = "europe-west1"
+  default     = "europe-west1"
 }

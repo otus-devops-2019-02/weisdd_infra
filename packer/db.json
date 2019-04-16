@@ -23,5 +23,17 @@
             "network": "{{ user `network` }}",
             "tags": "{{ user `tags` }}"
         }
+    ],
+    "provisioners": [
+        {
+            "type": "file",
+            "source": "files/mongod.conf",
+            "destination": "/tmp/mongod.conf"
+        },
+        {
+            "type": "shell",
+            "script": "scripts/install_mongodb.sh",
+            "execute_command": "sudo {{.Path}}"
+        }
     ]
 }

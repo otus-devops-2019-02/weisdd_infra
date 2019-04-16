@@ -22,3 +22,7 @@ output "app_external_ip2" {
 output "db_external_ip2" {
   value = "${module.db.db_external_ip2}"
 }
+
+output "db_internal_ip" {
+  value = "${module.db.db_internal_ip}"
+}
