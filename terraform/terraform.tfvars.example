@@ -1,0 +1,3 @@
+project = "infra-12345"
+
+region = "europe-west1"
