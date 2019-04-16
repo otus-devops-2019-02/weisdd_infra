@@ -1,15 +1,3 @@
 project = "infra-12345"
 
-public_key_path = "~/.ssh/appuser.pub"
-
-public_key_path2 = "~/.ssh/appuser.pub"
-
-public_key_path3 = "~/.ssh/appuser.pub"
-
-disk_image = "reddit-base"
-
-region = "europe-west-1"
-
-private_key_path = "~/.ssh/appuser"
-
-number_of_instances = 1
+region = "europe-west1"

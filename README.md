@@ -512,3 +512,419 @@ output "app_external_ip2" {
 }
 ```
 => Чтобы output-переменные генерировались для каждого созданного instance, после указания имени ресурса terraform, необходимо добавить .*. (google_compute_instance.app.*.).
+
+
+## HW 9 (terraform-2 - IaC in a team)
+
+### Импорт ресурсов из GCP
+Создаём копию уже определённого в GCP правила, разрешающего подключение по ssh:
+```
+resource "google_compute_firewall" "firewall_ssh" {
+  name        = "default-allow-ssh"
+  description = "Allow SSH from anywhere"
+  network     = "default"
+  priority    = 65534
+
+  allow {
+    protocol = "tcp"
+    ports    = ["22"]
+  }
+
+  source_ranges = ["0.0.0.0/0"]
+}
+```
+Т.к. в terraform state отсутствует информация о том, что правило уже применено, terraform apply завершится с ошибкой. Соответственно, нам необходимо вручную импортировать состояние:
+$ terraform import google_compute_firewall.firewall_ssh default-allow-ssh
+
+### Пример ссылки на атрибуты другого ресурса
+```
+resource "google_compute_address" "app_ip" {
+  name   = "reddit-app-ip"
+  region = "${var.region}"
+}
+```
+
+```
+  network_interface {
+    //[...]
+    access_config {
+      nat_ip = "${google_compute_address.app_ip.address}"
+    }
+  }
+```
+
+### Разбиение конфигурации по файлам / на модули
+```
+$ tree modules/app/
+modules/app/
+├── files
+│   ├── deploy.sh
+│   ├── puma.service
+│   └── set_env.sh
+├── main.tf
+├── outputs.tf
+└── variables.tf
+```
+
+```
+$ tree modules/db
+modules/db
+├── main.tf
+├── outputs.tf
+└── variables.tf
+```
+
+Интересные особенности:
+1. В модуль можно передавать значения для переменных;
+```
+module "db" {
+  source          = "../modules/db"
+  public_key_path = "${var.public_key_path}"
+  zone            = "${var.zone}"
+  db_disk_image   = "${var.db_disk_image}"
+}
+```
+
+2. Модуль может возвращать значения переменных:
+```
+variable "database_url" {
+  description = "database_url for reddit app"
+  default     = "127.0.0.1:27017"
+}
+```
+Соответственно, к ним можно обращаться извне:
+```
+database_url        = "${module.db.db_internal_ip}:27017"
+```
+
+После добавления конфигурации модуля, необходимо выполнить $ terraform get
+
+### Самостоятельное задание (стр. 24)
+Необходимо создать модуль vpc (+ параметризация).
+```
+resource "google_compute_firewall" "firewall_ssh" {
+  name        = "default-allow-ssh"
+  description = "Allow SSH from anywhere"
+  network     = "default"
+  priority    = 65534
+
+  allow {
+    protocol = "tcp"
+    ports    = ["22"]
+  }
+
+  //  source_ranges = ["0.0.0.0/0"]
+  source_ranges = "${var.source_ranges}"
+}
+
+resource "google_compute_project_metadata_item" "default" {
+  key = "ssh-keys"
+
+  value = "appuser:${chomp(file(var.public_key_path))}"
+}
+```
+
+### Самостоятельное задание (стр. 32)
+Проверьте работу параметризованного в прошлом слайде модуля vpc.
+1. Введите в source_ranges не ваш IP адрес, примените правило и проверьте отсутствие соединения к обоим хостам по ssh. Проконтролируйте, как изменилось правило файрвола в веб консоли.
+2. Введите в source_ranges ваш IP адрес, примените правило и проверьте наличие соединения к обоим хостам по ssh.
+3. Верните 0.0.0.0/0 в source_ranges.
+=> Всё отработало корректно.
+
+### Разбиение конфигурации на stage и prod
+```
+$ tree stage
+stage
+├── backend.tf
+├── main.tf
+├── outputs.tf
+├── terraform.tfstate
+├── terraform.tfstate.backup
+├── terraform.tfvars
+├── terraform.tfvars.example
+└── variables.tf
+```
+$ tree prod
+prod
+├── backend.tf
+├── main.tf
+├── outputs.tf
+├── terraform.tfstate
+├── terraform.tfstate.backup
+├── terraform.tfvars
+├── terraform.tfvars.example
+└── variables.tf
+```
+
+### Самостоятельное задание (стр. 36)
+1. Удалите из папки terraform файлы main.tf, outputs.tf, terraform.tfvars, variables.tf, так как они теперь перенесены в stage и prod
+2. Параметризируйте конфигурацию модулей насколько считаете нужным
+3. Отформатируйте конфигурационные файлы, используя команду terraform fmt
+=> Сделано
+
+### Работа с реестром модулей
+https://registry.terraform.io/modules/SweetOps/storage-bucket/google
+```
+provider "google" {
+  version = "2.0.0"
+  project = "${var.project}"
+  region  = "${var.region}"
+}
+
+module "storage-bucket" {
+  source  = "SweetOps/storage-bucket/google"
+  version = "0.1.1"
+  name    = ["terraform-prod-state-bucket", "terraform-stage-state-bucket"]
+}
+
+output storage-bucket_url {
+  value = "${module.storage-bucket.url}"
+}
+```
+
+### Задание со * (Стр. 42)
+1. Настройте хранение стейт файла в удаленном бекенде (remote backends) для окружений stage и prod, используя Google Cloud Storage в качестве бекенда. Описание бекенда нужно вынести вотдельный файл backend.tf
+=> Поскольку для переноса state-файлов в bucket последний сперва должен быть создан:
+```
+	ibeliako@dev:~/devops/git/weisdd_infra/terraform/prod$ terraform init
+	Initializing modules...
+	- module.app
+	- module.db
+	- module.vpc
+
+	Initializing the backend...
+	Error inspecting states in the "gcs" backend:
+		querying Cloud Storage failed: storage: bucket doesn't exist
+```
+конфигурацию необходимо применять по частям:
+```
+resource "google_storage_bucket" "terraform_state_prod" {
+  name     = "terraform-state-prod-31337"
+  location = "${var.location}"
+
+  versioning {
+    enabled = true
+  }
+
+  lifecycle {
+    prevent_destroy = true
+  }
+
+  force_destroy = false
+}
+```
+После выполнения terraform apply можно добавить оставшуюся часть:
+```
+terraform {
+  backend "gcs" {
+    bucket  = "terraform-state-prod-31337"
+    prefix  = "terraform/state/prod"
+  }
+}
+```
+
+```
+$ terraform init
+	Initializing modules...
+	- module.app
+	- module.db
+	- module.vpc
+
+Initializing the backend...
+Do you want to copy existing state to the new backend?
+  Pre-existing state was found while migrating the previous "local" backend to the
+  newly configured "gcs" backend. An existing non-empty state already exists in
+  the new backend. The two states have been saved to temporary files that will be
+  removed after responding to this query.
+  
+  Previous (type "local"): /tmp/terraform066626646/1-local.tfstate
+  New      (type "gcs"): /tmp/terraform066626646/2-gcs.tfstate
+  
+  Do you want to overwrite the state in the new backend with the previous state?
+  Enter "yes" to copy and "no" to start with the existing state in the newly
+  configured "gcs" backend.
+
+  Enter a value: yes
+
+
+Successfully configured the backend "gcs"! Terraform will automatically
+use this backend unless the backend configuration changes.
+
+Initializing provider plugins...
+
+Terraform has been successfully initialized!
+
+[...]
+```
+
+2. Перенесите конфигурационные файлы Terraform в другую директорию (вне репозитория). Проверьте, что state-файл (terraform.tfstate) отсутствует. Запустите Terraform в обеих директориях и проконтролируйте, что он "видит" текущее состояние независимо от директории, в которой запускается
+=>
+```
+:~/devops/git/weisdd_infra/terraform/prod-temp$ terraform refresh
+google_compute_address.app_ip: Refreshing state... (ID: infra-235421/europe-west1/reddit-app-ip)
+google_compute_firewall.firewall_puma: Refreshing state... (ID: allow-puma-default)
+google_storage_bucket.terraform_state_prod: Refreshing state... (ID: terraform-state-prod-31337)
+google_compute_instance.db: Refreshing state... (ID: reddit-db)
+google_compute_firewall.firewall_mongo: Refreshing state... (ID: allow-mongo-default)
+google_compute_project_metadata_item.default: Refreshing state... (ID: ssh-keys)
+google_compute_firewall.firewall_ssh: Refreshing state... (ID: default-allow-ssh)
+google_compute_instance.app: Refreshing state... (ID: reddit-app-0)
+
+Outputs:
+
+app_external_ip2 = [
+    104.199.11.89
+]
+db_external_ip2 = [
+    35.233.2.133
+]
+:~/devops/git/weisdd_infra/terraform/prod-temp$ ls
+backend.tf  main.tf  outputs.tf  terraform.tfvars  terraform.tfvars.example  variables.tf
+```
+Всё отработало корректно.
+
+3. Попробуйте запустить применение конфигурации одновременно, чтобы проверить работу блокировок
+=> gcs backend поддерживает блокировку (terraform выполняет её автоматически), поэтому никаких коллизий не возникает:
+```
+:~/devops/git/weisdd_infra/terraform/prod-temp$ terraform apply
+
+Error: Error locking state: Error acquiring the state lock: writing "gs://terraform-state-prod-31337/terraform/state/prod/default.tflock" failed: googleapi: Error 412: Precondition Failed, conditionNotMet
+Lock Info:
+  ID:        1555360328288495
+  Path:      gs://terraform-state-prod-31337/terraform/state/prod/default.tflock
+  Operation: OperationTypeApply
+  Who:       ibeliako@dev
+  Version:   0.11.13
+  Created:   2019-04-15 20:32:08.080356139 +0000 UTC
+  Info:      
+
+
+Terraform acquires a state lock to protect the state from being written
+by multiple users at the same time. Please resolve the issue above and try
+again. For most commands, you can disable locking with the "-lock=false"
+flag, but this is not recommended.
+```
+
+P.S. Если provisioning для bucket'а выполняется в том же наборе конфигурационных файлов, что и остальная инфраструктура, для удаления ресурсов потребуется:
+* Закомментировать секцию gcs и после выполнить terraform init
+=> Будет предложено выполнить миграцию state-файлов из gcs в локальное хранилище
+* Изменить параметры lifecycle и force_destroy
+```
+  lifecycle {
+    prevent_destroy = false
+  }
+
+  force_destroy = true
+```
+* В terraform.tfstate вручную подправить force_destroy с false на true, затем выполнить terraform destroy.
+При отдельном provisioning для gcs, полагаю, таких сложностей возникать не будет, но не тестировал.
+
+### Задание с **
+В процессе перехода от конфигурации, созданной в предыдущем ДЗ к модулям мы перестали использовать provisioner для деплоя приложения. Соответственно, инстансы поднимаются без приложения.
+Добавьте необходимые provisioner в модули для деплоя и работы приложения. Файлы, используемые в provisioner, должны находится в директории модуля.
+=>
+
+1. По умолчанию, MongoDB слушает порт 27017 только на 127.0.0.1. Соответственно, нам потребуется пересобрать reddit-db-base в Packer'е, при этом положив измененный mongod.conf в /etc.
+
+1.1. Подготавливаем файл с конфигурацией MongoDB - packer/files/mongod.conf:
+```
+# mongod.conf
+[...]
+net:
+  port: 27017
+#  bindIp: 127.0.0.1
+  bindIp: 0.0.0.0
+```
+
+1.2. Вносим соответствующие изменения в секцию provisioners в packer/db.json, в конечном итоге получаем:
+```
+    "provisioners": [
+        {
+            "type": "file",
+            "source": "files/mongod.conf",
+            "destination": "/tmp/mongod.conf"
+        },
+        {
+            "type": "shell",
+            "script": "scripts/install_mongodb.sh",
+            "execute_command": "sudo {{.Path}}"
+        }
+    ]
+```
+
+1.3. В скрипт packer/scripts/install_mongodb.sh необходимо добавить команды, подменяющие файл mongodb в /etc, не забываем выполнить chown:
+```
+#!/bin/bash
+sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv EA312927
+sudo bash -c 'echo "deb http://repo.mongodb.org/apt/ubuntu xenial/mongodb-org/3.2 multiverse" > /etc/apt/sources.list.d/mongodb-org-3.2.list'
+sudo apt update
+sudo apt install -y mongodb-org
+sudo rm /etc/mongod.conf
+sudo mv /tmp/mongod.conf /etc/
+sudo chown root:root /etc/mongod.conf
+sudo systemctl daemon-reload
+sudo systemctl start mongod
+sudo systemctl enable mongod
+```
+
+1.4. Пересобираем образ:
+```
+$ packer build -var-file=variables.json db.json
+```
+
+2. Дополняем конфигурацию terraform
+2.1. Поскольку мы заранее не знаем, каким будет внутренний IP-адрес db instance, создаёт output-переменную в modules/db/outputs.tf:
+```
+output "db_internal_ip" {
+  value = "${google_compute_instance.db.network_interface.0.network_ip}"
+}
+```
+
+2.2. Приложение в процессе работы использует БД, указанную в переменной окружения DATABASE_URL. Добавляем поддержку EnvironmentFile в секции Service в modules/app/files/puma.service:
+```
+[...]
+[Service]
+EnvironmentFile=/home/appuser/reddit_app_service.conf
+[...]
+```
+
+2.3. Создаём дополнительный скрипт, который будет динамически записывать IP-адрес db instnance в /home/appuser/reddit_app_service.conf. modules/app/files/set_env.sh
+```bash
+#!/bin/bash
+set -e
+
+DATABASE_URL="${1:-127.0.0.1:27017}"
+echo $DATABASE_URL
+# Supplies reddit app with a link to database, it's useful when a db server is
+# installed on another host
+bash -c "echo 'DATABASE_URL=${DATABASE_URL}' > ~/reddit_app_service.conf"
+```
+
+2.4. В modules/app/variables.tf добавляем поддержку переменной database_url, которую мы и будем передавать в скрипт set_env.sh:
+```
+variable "database_url" {
+  description = "database_url for reddit app"
+  default     = "127.0.0.1:27017"
+}
+```
+
+2.5. В modules/app/main.tf добавляем provisioner для скрипта:
+```
+[...]
+  provisioner "file" {
+    source      = "${path.module}/files/set_env.sh"
+    destination = "/tmp/set_env.sh"
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "/bin/chmod +x /tmp/set_env.sh",
+      "/tmp/set_env.sh ${var.database_url}",
+    ]
+  }
+[...]
+```
+Здесь следует отдельно отметить, что т.к. terraform использует относительные пути к файлам, в модулях необходимо использовать ${path.module},  иначе файлы не будут найдены:
+```
+source      = "${path.module}/files/set_env.sh"
+```

@@ -1,17 +1,3 @@
-terraform {
-  # Версия terraform
-  required_version = ">=0.11,<0.12"
-}
-
-provider "google" {
-  # Версия провайдера
-  version = "2.0.0"
-
-  # ID проекта
-  project = "${var.project}"
-  region  = "${var.region}"
-}
-
 resource "google_compute_instance" "app" {
   count        = "${var.number_of_instances}"
   name         = "reddit-app-${count.index}"
@@ -21,7 +7,7 @@ resource "google_compute_instance" "app" {
   boot_disk {
     initialize_params {
       # Здесь можно передать либо имя семейства, либо полное имя
-      image = "${var.disk_image}"
+      image = "${var.app_disk_image}"
     }
   }
 
@@ -38,7 +24,9 @@ resource "google_compute_instance" "app" {
     network = "default"
 
     # использовать ephemeral IP для доступа в Интернет
-    access_config {}
+    access_config {
+      nat_ip = "${google_compute_address.app_ip.address}"
+    }
   }
 
   # Параметры подключения провижионеров
@@ -50,12 +38,24 @@ resource "google_compute_instance" "app" {
   }
 
   provisioner "file" {
-    source      = "files/puma.service"
+    source      = "${path.module}/files/set_env.sh"
+    destination = "/tmp/set_env.sh"
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "/bin/chmod +x /tmp/set_env.sh",
+      "/tmp/set_env.sh ${var.database_url}",
+    ]
+  }
+
+  provisioner "file" {
+    source      = "${path.module}/files/puma.service"
     destination = "/tmp/puma.service"
   }
 
   provisioner "remote-exec" {
-    script = "files/deploy.sh"
+    script = "${path.module}/files/deploy.sh"
   }
 }
 
@@ -76,8 +76,7 @@ resource "google_compute_firewall" "firewall_puma" {
   target_tags = ["reddit-app"]
 }
 
-resource "google_compute_project_metadata_item" "default" {
-  key   = "ssh-keys"
-  value = "${chomp(file(var.public_key_path))}\n${chomp(file(var.public_key_path2))}\n${chomp(file(var.public_key_path3))}"
-  # value = "${chomp(file(var.public_key_path))}"
+resource "google_compute_address" "app_ip" {
+  name   = "reddit-app-ip"
+  region = "${var.region}"
 }
