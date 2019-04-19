@@ -15,6 +15,10 @@ resource "google_compute_instance" "db" {
     access_config = {}
   }
 
+  labels {
+    ansible_group = "db"
+  }
+
   metadata {
     ssh-keys = "appuser:${file(var.public_key_path)}"
   }

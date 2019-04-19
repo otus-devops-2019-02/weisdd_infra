@@ -6,3 +6,4 @@
 *.terraform.tfstate.lock.info
 /packer/variables.json
 /packer/variables_full.json
+*.cache

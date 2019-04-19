@@ -19,6 +19,10 @@ resource "google_compute_instance" "app" {
 
   tags = ["reddit-app"]
 
+  labels {
+    ansible_group = "app"
+  }
+
   network_interface {
     # сеть, к которой присоединить данный интерфейс
     network = "default"

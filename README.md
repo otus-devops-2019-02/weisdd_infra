@@ -928,3 +928,148 @@ variable "database_url" {
 ```
 source      = "${path.module}/files/set_env.sh"
 ```
+
+## HW 10 (ansible-1)
+Примеры протестированных команд:
+```
+$ ansible app -m command -a 'ruby -v'
+$ ansible app -m command -a 'ruby -v; bundler -v'
+$ ansible db -m command -a 'systemctl status mongod'
+$ ansible db -m systemd -a name=mongod
+$ ansible db -m service -a name=mongod
+$ ansible app -m git -a 'repo=https://github.com/express42/reddit.git dest=/home/appuser/reddit'
+```
+### Вопрос на стр. 32
+Теперь выполните:
+	ansible app -m command -a 'rm -rf ~/reddit'
+и проверьте еще раз выполнение плейбука. Что изменилось и почему?
+Папка была удалена, поэтому повторное выполнение ansible-playbook clone.yml приводит к скачиванию репозитория.
+
+### Задание со * (стр. 33-35)
+1. Создайте файл inventory.json в формате, описанном в п.1 для нашей GCP-инфраструктуры и скрипт для работы с ним.
+=> Чтобы не формировать файл каждый раз вручную, был написан скрипт dynamic_inventory.py, который, пользуясь реквизитами доступа и дефолтным конфигом gcloud, опрашивает GCP и возвращает inventory либо в динамическом формате json, либо в статическом формате (в зависимости от переданных ключей). При наличии у instance метки ansible_group, узел автоматически помещается в соответствующую группу (для тестов, данные о метках внесены в модули Terraform).
+```bash
+$ ansible-inventory all -i dynamic_inventory.py --graph
+@all:
+  |--@app:
+  |  |--34.76.162.247
+  |--@db:
+  |  |--104.199.2.82
+  |--@ungrouped:
+  |  |--10.132.15.225
+```
+Динамический формат:
+```bash
+./dynamic_inventory.py --list > inventory.json
+```
+Статический:
+```bash
+./dynamic_inventory.py --list --static-mode > inventory_static.json
+```
+
+2. Добейтесь успешного выполнения команды ansible all -m ping и опишите шаги в README.
+=> По сути, можно использовать dynamic_inventory.py напрямую, но раз уж в задании явно оговаривается необходимость применения inventory.json, то нам потребуется простой скрипт, который будет считывать содержимое файла и выводить его в stdout.
+print_dynamic_inventory.py:
+```python
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+
+def main():
+    with open('inventory.json') as f:
+        print(f.read())
+
+
+if __name__ == '__main__':
+    main()
+```
+
+```bash
+$ ansible-inventory -i print_dynamic_inventory.py --graph
+@all:
+  |--@app:
+  |  |--34.76.47.104
+  |--@db:
+  |  |--104.199.2.82
+  |--@ungrouped:
+```
+
+```bash
+$ ansible all -i print_dynamic_inventory.py -m ping
+34.76.47.104 | SUCCESS => {
+    "changed": false,
+    "ping": "pong"
+}
+104.199.2.82 | SUCCESS => {
+    "changed": false,
+    "ping": "pong"
+}
+```
+
+3. Добавьте параметры в файл ansible.cfg для работы с инвентори в формате JSON.
+=>
+```bash
+$ cat ansible.cfg 
+[defaults]
+;inventory = ./inventory
+inventory = ./print_dynamic_inventory.py
+remote_user = appuser
+private_key_file = ~/.ssh/appuser
+host_key_checking = False
+retry_files_enabled = False
+```
+
+4. Если вы разобрались с отличиями схем JSON для динамического и статического инвентори, также добавьте описание в README
+=> Статический формат:
+```
+{
+  "app": {
+    "hosts": {
+      "reddit-app-0": {
+        "ansible_host": "34.76.162.247"
+      }
+    }
+  },
+  "db": {
+    "hosts": {
+      "reddit-db": {
+        "ansible_host": "104.199.2.82"
+      }
+    }
+  },
+  "ungrouped": {
+    "hosts": {
+      "instance-1": {
+        "ansible_host": "10.132.15.225"
+      }
+    }
+  },
+  "vars": {}
+}
+```
+Динамический формат:
+```
+{
+  "_meta": {
+    "hostvars": {}
+  },
+  "app": {
+    "hosts": [
+      "34.76.162.247"
+    ],
+    "vars": {}
+  },
+  "db": {
+    "hosts": [
+      "104.199.2.82"
+    ],
+    "vars": {}
+  },
+  "ungrouped": {
+    "hosts": [
+      "10.132.15.225"
+    ],
+    "vars": {}
+  }
+}
+```
