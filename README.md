@@ -1073,3 +1073,183 @@ retry_files_enabled = False
   }
 }
 ```
+
+## HW 11 (ansible-2)
+В данной работе мы опробовали:
+* применение jinja2 templates;
+* пробный прогон через опцию --check;
+* ограчичение группы хостов, к которым применяется плейбук, через --limit <hosts> и --tags <tags>;
+* разбиение одного плейбука на несколько с последующим их объединением в один плейбук через import;
+* механизм notify /handlers;
+* установка софта и деплой приложения через Ansible (на смену bash-скриптам), в т.ч. в Packer.
+
+### Задание со * (стр. 69)
+Условия:
+Исследуйте возможности использования dynamic inventory для GCP (для этого есть не только gce.py ?).
+Использование динамического инвентори означает, что это должно быть отражено в ansible.cfg и плейбуках (т.е. они должны использовать выбранное решение)
+
+Решение:
+В целом, можно было использовать скрипт, разработанный для прошлого задания, dynamic_inventory.py, или gcp.py, но актуальная документация по Ansible рекомендует применение inventory plugin "gcp compute". Его гибкости вполне достаточно для текущих задач.
+
+Итак, настройка плагина:
+```yaml
+plugin: gcp_compute
+zones:
+  - europe-west1-b
+projects:
+  - infra-235421
+scopes:
+  - https://www.googleapis.com/auth/compute
+service_account_file: ~/devops/service_account.json
+auth_kind: serviceaccount
+filters:
+keyed_groups:
+  # <prefix><separator><key>
+  - prefix: ""
+    separator: ""
+    key: labels.ansible_group
+hostnames:
+  # List hosts by name instead of the default public ip
+  - name
+compose:
+  # Set an inventory parameter to use the Public IP address to connect to the host
+  # For Private ip use "networkInterfaces[0].networkIP"
+  ansible_host: networkInterfaces[0].accessConfigs[0].natIP
+```
+В целом, конфиг основан на:
+http://docs.testing.ansible.com/ansible/latest/plugins/inventory/gcp_compute.html
+с некоторыми дополнениями.
+
+Ключевые моменты:
+* Имя файла с конфигурацией должна заканчиваться на gcp_compute.(yml|yaml) или gcp.(yml|yaml), иначе возникнет ошибка;
+* Поскольку Ansible запускаем не из GCP, в секции compose собираем внешние IP-адреса;
+* Есть разные способы выстраивания inventory-файла, но наиболее подходящий нам - keyed_groups. Формат по умолчанию: <prefix><separator><key>
+  - prefix и separator приравниваем к "" (стандартное значение для separator - "_");
+  - в предыдущей домашней работе в качестве индикатора принадлежности к конкретной Ansible-группе я выбрал label "ansible_group", соответственно и в качестве параметра key теперь указываем "labels.ansible_group";
+* Для авторизации на GCP используется service account file в формате json (параметр service_account_file).
+
+Изменения в ansible.cfg
+```ini
+[defaults]
+inventory = ./dynamic_inventory_gcp.yml
+[inventory]
+enable_plugins = gcp_compute, host_list, script, yaml, ini, auto
+```
+
+### Самостоятельное задание (стр. 72)
+Задание:
+Опишите с помощью модулей Ansible в плейбуках ansible/packer_app.yml и ansible/packer_db.yml действия, аналогичные bash-скриптам, которые сейчас используются в нашей конфигурации Packer.
+
+Решение:
+packer_app.yml
+```yaml
+---
+- name: Install Ruby, Bundler, build-essential
+  hosts: all
+  become: true
+  tasks:
+    - name: Install Ruby and all dependencies
+      apt:
+        name: "{{ packages }}"
+      vars:
+        packages:
+          - ruby-full
+          - ruby-bundler
+          - build-essential
+```
+
+packer_db.yml
+```yaml
+---
+- name: Install MongoDB
+  hosts: all
+  become: true
+  tasks:
+    - name: Add MongoDB key
+      apt_key:
+        keyserver: keyserver.ubuntu.com
+        id: EA312927
+
+    - name: Add MongoDB repository
+      apt_repository:
+        repo: deb http://repo.mongodb.org/apt/ubuntu xenial/mongodb-org/3.2 multiverse
+        filename: mongodb-org-3.2.list
+
+    - name: Install MongoDB
+      apt:
+        name: mongodb-org
+
+    - name: Enable MongoDB service
+      systemd:
+        name: mongod
+        enabled: yes
+```
+Интересная особенность плейбука в том, что hosts нужно выставить равным all.
+
+Интеграция в Packer:
+app.json
+```json
+    "provisioners": [
+        {
+            "type": "ansible",
+            "playbook_file": "ansible/packer_app.yml"
+        }
+    ]
+```
+
+db.json
+```json
+    "provisioners": [
+        {
+            "type": "ansible",
+            "playbook_file": "ansible/packer_db.yml"
+        }
+    ]
+```
+
+### Extra work
+Поскольку у меня нет никакого желания каждый раз при деплое приложения вручную указывать IP-адрес instance с MongoDB, я подправил app.yml:
+```yaml
+- name: Gather facts from reddit-db
+  hosts: db
+  tasks: []
+
+- name: Configure App
+  hosts: app
+  become: true
+  vars:
+    db_host: "{{ hostvars['reddit-db']['ansible_default_ipv4']['address'] }}"
+  tasks:
+    - name: Add unit file for Puma
+      copy:
+        src: files/puma.service
+        dest: /etc/systemd/system/puma.service
+      notify: reload puma
+
+    - name: Add config for DB connection
+      template:
+        src: templates/db_config.j2
+        dest: /home/appuser/db_config
+
+    - name: enable puma
+      systemd: name=puma enabled=yes
+
+  handlers:
+  - name: reload puma
+    service: name=puma state=restarted
+    tags: app-tag
+```
+Поскольку мы заранее не знаем, каким будет IP-адрес instance с MongoDB, нам необходимо опираться на ansible facts, которые собираются в процессе выполнения плейбука. При этом, в одном из предыдущих заданий мы разбили один плейбук на множество, ограничив описание деплоя приложения группой хостов app, соответственно, на момент выполнения app.yaml в Ansible отсутствуют факты о db. В соответствии с рекомендацией, найденной на https://serverfault.com/questions/638507/how-to-access-host-variable-of-a-different-host-with-ansible, необходимо добавить пустое задание для db, чтобы форсировать сбор фактов:
+```yaml
+- name: Gather facts from reddit-db
+  hosts: db
+  tasks: []
+```
+После этого можем использовать:
+```yaml
+- name: Configure App
+  hosts: app
+  become: true
+  vars:
+    db_host: "{{ hostvars['reddit-db']['ansible_default_ipv4']['address'] }}"
+```

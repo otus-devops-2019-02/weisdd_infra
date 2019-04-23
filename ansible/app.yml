@@ -1,0 +1,32 @@
+---
+#https://serverfault.com/questions/638507/how-to-access-host-variable-of-a-different-host-with-ansible
+- name: Gather facts from reddit-db
+  hosts: db
+  tasks: []
+
+- name: Configure App
+  hosts: app
+#  tags: app-tag
+  become: true
+  vars:
+#    db_host: 10.132.0.17
+    db_host: "{{ hostvars['reddit-db']['ansible_default_ipv4']['address'] }}"
+  tasks:
+    - name: Add unit file for Puma
+      copy:
+        src: files/puma.service
+        dest: /etc/systemd/system/puma.service
+      notify: reload puma
+
+    - name: Add config for DB connection
+      template:
+        src: templates/db_config.j2
+        dest: /home/appuser/db_config
+
+    - name: enable puma
+      systemd: name=puma enabled=yes
+
+  handlers:
+  - name: reload puma
+    service: name=puma state=restarted
+    tags: app-tag

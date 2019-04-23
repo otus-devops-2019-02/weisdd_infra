@@ -1,9 +1,18 @@
+# Terraform
 *.tfstate
 *.tfstate.*.backup
 *.tfstate.backup
 *.tfvars
 .terraform/
 *.terraform.tfstate.lock.info
+
+# Packer
 /packer/variables.json
 /packer/variables_full.json
+
+# My scripts
 *.cache
+
+# Ansible
+*.retry
+service_account.json
