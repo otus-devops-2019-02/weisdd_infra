@@ -1091,7 +1091,7 @@ retry_files_enabled = False
 Решение:
 В целом, можно было использовать скрипт, разработанный для прошлого задания, dynamic_inventory.py, или gcp.py, но актуальная документация по Ansible рекомендует применение inventory plugin "gcp compute". Его гибкости вполне достаточно для текущих задач.
 
-Итак, настройка плагина:
+Итак, настройка плагина (inventory_gcp.yml):
 ```yaml
 plugin: gcp_compute
 zones:
@@ -1131,7 +1131,7 @@ http://docs.testing.ansible.com/ansible/latest/plugins/inventory/gcp_compute.htm
 Изменения в ansible.cfg
 ```ini
 [defaults]
-inventory = ./dynamic_inventory_gcp.yml
+inventory = ./inventory_gcp.yml
 [inventory]
 enable_plugins = gcp_compute, host_list, script, yaml, ini, auto
 ```
