@@ -1206,6 +1206,12 @@ db.json
         }
     ]
 ```
+Важно:
+Для того, чтобы build корректно выполнился, теперь packer нужно запускать из корневой директории репозитория:
+```
+weisdd_infra$ packer validate -var-file=packer/variables.json packer/db.json
+weisdd_infra$ packer validate -var-file=packer/variables.json packer/app.json
+```
 
 ### Extra work
 Поскольку у меня нет никакого желания каждый раз при деплое приложения вручную указывать IP-адрес instance с MongoDB, я подправил app.yml:
