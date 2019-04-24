@@ -1,0 +1,24 @@
+#http://docs.testing.ansible.com/ansible/latest/plugins/inventory/gcp_compute.html
+#Uses a YAML configuration file that ends with gcp_compute.(yml|yaml) or gcp.(yml|yaml).
+plugin: gcp_compute
+zones:
+  - europe-west1-b
+projects:
+  - infra-235421
+scopes:
+  - https://www.googleapis.com/auth/compute
+service_account_file: ~/devops/service_account.json
+auth_kind: serviceaccount
+filters:
+keyed_groups:
+  # <prefix><separator><key>
+  - prefix: ""
+    separator: ""
+    key: labels.ansible_group
+hostnames:
+  # List hosts by name instead of the default public ip
+  - name
+compose:
+  # Set an inventory parameter to use the Public IP address to connect to the host
+  # For Private ip use "networkInterfaces[0].networkIP"
+  ansible_host: networkInterfaces[0].accessConfigs[0].natIP
