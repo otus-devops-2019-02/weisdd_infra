@@ -10,7 +10,8 @@ control 'terraform' do
   	all_folders = modules + environments
   	all_folders.each do |fname|
 	    unless modules.include?(fname)  # We don't expect to see terraform.tfvars.example in folders with modules, thus skip validation
-	    	describe command("cd terraform/#{fname} && terraform init && terraform get && terraform validate -var-file=terraform.tfvars.example") do
+	    	command("cd terraform/#{fname} && terraform init")
+	    	describe command("cd terraform/#{fname} && terraform validate -var-file=terraform.tfvars.example") do
 	    		its('stdout') { should eq "" }
 	      		its('stderr') { should eq "" }
 	      		its('exit_status') { should eq 0 }
