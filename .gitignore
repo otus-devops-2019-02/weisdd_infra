@@ -20,3 +20,6 @@ vault.key
 
 # Ansible Galaxy
 jdauphant.nginx
+
+# Inspec
+inspec.lock

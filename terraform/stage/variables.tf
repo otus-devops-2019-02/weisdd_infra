@@ -44,6 +44,7 @@ variable "zone" {
 
 variable "number_of_instances" {
   description = "Number of reddit-app instances (count)"
+  default     = 1
 }
 
 variable "location" {

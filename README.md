@@ -1,4 +1,4 @@
-# weisdd_infra
+# weisdd_infra [![Build Status](https://travis-ci.com/otus-devops-2019-02/weisdd_infra.svg?branch=master)](https://travis-ci.com/otus-devops-2019-02/weisdd_infra)
 weisdd Infra repository
 
 ## HW 5 (VPN)
