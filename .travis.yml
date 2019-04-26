@@ -3,6 +3,7 @@ sudo: required
 language: bash
 before_install:
 - curl https://raw.githubusercontent.com/express42/otus-homeworks/2019-02/run.sh | bash
+- curl https://raw.githubusercontent.com/otus-devops-2019-02/weisdd_infra/ansible-3/travisci/prepare_docker.sh | bash
 notifications:
   slack:
     rooms:
