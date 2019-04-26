@@ -17,6 +17,7 @@ resource "google_compute_instance" "db" {
 
   labels {
     ansible_group = "db"
+    env           = "${var.label_env}"
   }
 
   metadata {

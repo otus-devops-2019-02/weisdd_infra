@@ -21,6 +21,7 @@ resource "google_compute_instance" "app" {
 
   labels {
     ansible_group = "app"
+    env           = "${var.label_env}"
   }
 
   network_interface {

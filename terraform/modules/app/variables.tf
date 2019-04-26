@@ -28,3 +28,8 @@ variable "database_url" {
   description = "database_url for reddit app"
   default     = "127.0.0.1:27017"
 }
+
+variable "label_env" {
+  description = "GCP label 'env' associating an instance with an environment in which it's being run (e.g. stage, prod)"
+  default     = "stage"
+}

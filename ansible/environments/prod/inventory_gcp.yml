@@ -10,6 +10,7 @@ scopes:
 service_account_file: ~/devops/service_account.json
 auth_kind: serviceaccount
 filters:
+  - labels.env = prod
 keyed_groups:
   # <prefix><separator><key>
   - prefix: ""

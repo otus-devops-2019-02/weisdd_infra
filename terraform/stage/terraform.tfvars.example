@@ -15,3 +15,5 @@ private_key_path = "~/.ssh/appuser"
 number_of_instances = 1
 
 location = "europe-west1"
+
+label_env = "prod"
