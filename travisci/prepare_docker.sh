@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 GROUP=2019-02
 BRANCH=${TRAVIS_PULL_REQUEST_BRANCH:-$TRAVIS_BRANCH}
-HOMEWORK_RUN=./tests/run_tests.sh
+HOMEWORK_RUN=./travisci/tests/run_tests.sh
 DOCKER_IMAGE=express42/otus-homeworks
 
 echo HOMEWORK:$BRANCH
