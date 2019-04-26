@@ -17,7 +17,7 @@ resource "google_compute_instance" "app" {
     ssh-keys = "appuser:${file(var.public_key_path)}"
   }
 
-  tags = ["reddit-app"]
+  tags = ["reddit-app", "http-server"]
 
   labels {
     ansible_group = "app"
@@ -41,26 +41,26 @@ resource "google_compute_instance" "app" {
     private_key = "${file(var.private_key_path)}"
   }
 
-//  provisioner "file" {
-//    source      = "${path.module}/files/set_env.sh"
-//    destination = "/tmp/set_env.sh"
-//  }
-//
-//  provisioner "remote-exec" {
-//    inline = [
-//      "/bin/chmod +x /tmp/set_env.sh",
-//      "/tmp/set_env.sh ${var.database_url}",
-//    ]
-//  }
-//
-//  provisioner "file" {
-//    source      = "${path.module}/files/puma.service"
-//    destination = "/tmp/puma.service"
-//  }
-//
-//  provisioner "remote-exec" {
-//    script = "${path.module}/files/deploy.sh"
-//  }
+  //  provisioner "file" {
+  //    source      = "${path.module}/files/set_env.sh"
+  //    destination = "/tmp/set_env.sh"
+  //  }
+  //
+  //  provisioner "remote-exec" {
+  //    inline = [
+  //      "/bin/chmod +x /tmp/set_env.sh",
+  //      "/tmp/set_env.sh ${var.database_url}",
+  //    ]
+  //  }
+  //
+  //  provisioner "file" {
+  //    source      = "${path.module}/files/puma.service"
+  //    destination = "/tmp/puma.service"
+  //  }
+  //
+  //  provisioner "remote-exec" {
+  //    script = "${path.module}/files/deploy.sh"
+  //  }
 }
 
 resource "google_compute_firewall" "firewall_puma" {

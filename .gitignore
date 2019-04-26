@@ -16,3 +16,7 @@
 # Ansible
 *.retry
 service_account.json
+vault.key
+
+# Ansible Galaxy
+jdauphant.nginx
