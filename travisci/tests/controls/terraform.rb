@@ -15,7 +15,7 @@ control 'terraform' do
 	      its('exit_status') { should eq 0 }
 	    end
 	    unless modules.include?(fname)  # We don't expect to see terraform.tfvars.example in folders with modules, thus skip validation
-	    	describe command("cd terraform/#{fname} && terraform validate -var-file=terraform.tfvars.example") do
+	    	describe command("cd terraform/#{fname} && terraform get && terraform validate -var-file=terraform.tfvars.example") do
 	    		its('stdout') { should eq "" }
 	      		its('stderr') { should eq "" }
 	      		its('exit_status') { should eq 0 }
