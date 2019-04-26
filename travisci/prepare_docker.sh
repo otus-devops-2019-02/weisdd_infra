@@ -6,6 +6,8 @@ DOCKER_IMAGE=express42/otus-homeworks
 
 echo HOMEWORK:$BRANCH
 
+tree
+
 if [ -f $HOMEWORK_RUN ]; then
 	echo "Run tests"
 	# Prepare network & run container
