@@ -1265,7 +1265,9 @@ weisdd_infra$ packer validate -var-file=packer/variables.json packer/app.json
 * разбили ранее созданные плейбуки на роли (app, db);
 * разделили окружения на prod и env;
 * установили комьюнити-роль nginx;
-* опробовали применения Ansible Vault.
+* опробовали применения Ansible Vault;
+* добавили поддержку окружения в dynamic inventory;
+* задали дополнительные тесты в TravisCI.
 
 ### Самостоятельное задание (стр. 48)
 Задание:
