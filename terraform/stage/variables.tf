@@ -44,9 +44,15 @@ variable "zone" {
 
 variable "number_of_instances" {
   description = "Number of reddit-app instances (count)"
+  default     = 1
 }
 
 variable "location" {
   description = "Bucket location"
   default     = "europe-west1"
+}
+
+variable "label_env" {
+  description = "GCP label 'env' associating an instance with an environment in which it's being run (e.g. stage, prod)"
+  default     = "stage"
 }

@@ -1,4 +1,4 @@
-# weisdd_infra
+# weisdd_infra [![Build Status](https://travis-ci.com/otus-devops-2019-02/weisdd_infra.svg?branch=master)](https://travis-ci.com/otus-devops-2019-02/weisdd_infra)
 weisdd Infra repository
 
 ## HW 5 (VPN)
@@ -1259,3 +1259,336 @@ weisdd_infra$ packer validate -var-file=packer/variables.json packer/app.json
   vars:
     db_host: "{{ hostvars['reddit-db']['ansible_default_ipv4']['address'] }}"
 ```
+
+## HW#12 (ansible-3: Работа с ролями и окружениями)
+В данной работе мы сделали:
+* разбили ранее созданные плейбуки на роли (app, db);
+* разделили окружения на prod и env;
+* установили комьюнити-роль nginx;
+* опробовали применения Ansible Vault;
+* добавили поддержку окружения в dynamic inventory;
+* задали дополнительные тесты в TravisCI.
+
+### Самостоятельное задание (стр. 48)
+Задание:
+* Добавьте в конфигурацию Terraform открытие 80 порта для инстанса приложения
+* Добавьте вызов роли jdauphant.nginx в плейбук app.yml
+* Примените плейбук site.yml для окружения stage и проверьте, что приложение теперь доступно на 80 порту
+
+Решение:
+* Добавьте в конфигурацию Terraform открытие 80 порта для инстанса приложения
+В GCP, по умолчанию, существует правило, разрешающее доступ по http для instance с network tag "http-server". Соответственно, мы можем обойтись минимумом изменений в конфигурации terraform:
+modules/app/main.tf:
+```
+resource "google_compute_instance" "app" {
+  [...]
+  tags = ["reddit-app", "http-server"]
+  [...]
+}
+```
+* Добавьте вызов роли jdauphant.nginx в плейбук app.yml
+```yaml
+---
+#https://serverfault.com/questions/638507/how-to-access-host-variable-of-a-different-host-with-ansible
+- name: Gather facts from reddit-db
+  hosts: db
+  tasks: []
+
+- name: Configure App
+  hosts: app
+  become: true
+
+  roles:
+    - app
+    - jdauphant.nginx
+```
+
+* Примените плейбук site.yml для окружения stage и проверьте, что приложение теперь доступно на 80 порту
++
+
+### Задание со * (стр. 55) - Работа с динамическим инвентори
+Задание:
+Настройте использование динамического инвентори для окружений stage и prod.
+
+Решение:
+Тут всё довольно просто. Первым делом, нам нужно определить некий признак, по которому instance будет считаться частью соответствующего окружения (prod или stage). Им станет метка 'env', зададим её в конфигурации terraform:
+terraform/modules/app/variables.tf
+```json
+variable "label_env" {
+  description = "GCP label 'env' associating an instance with an environment in which it's being run (e.g. stage, prod)"
+  default     = "stage"
+}
+```
+terraform/modules/app/main.tf
+```json
+resource "google_compute_instance" "app" {
+  [...]
+
+  labels {
+    ansible_group = "app"
+    env           = "${var.label_env}"
+  }
+  [...]
+}
+```
+terraform/modules/db/variables.tf
+```json
+variable "label_env" {
+  description = "GCP label 'env' associating an instance with an environment in which it's being run (e.g. stage, prod)"
+  default     = "stage"
+}
+```
+terraform/modules/db/main.tf
+```json
+resource "google_compute_instance" "db" {
+  [...]
+
+  labels {
+    ansible_group = "db"
+    env           = "${var.label_env}"
+  }
+  [...]
+}
+```
+terraform/prod/variables.tf
+```json
+variable "label_env" {
+  description = "GCP label 'env' associating an instance with an environment in which it's being run (e.g. stage, prod)"
+  default     = "prod"
+}
+```
+terraform/prod/terraform.tfvars
+```json
+label_env = "prod"
+```
+terraform/prod/main.tf
+```json
+module "app" {
+  [...]
+  label_env           = "${var.label_env}"
+}
+
+module "db" {
+  [...]
+  label_env       = "${var.label_env}"
+}
+
+```
+terraform/stage/variables.tf
+```json
+variable "label_env" {
+  description = "GCP label 'env' associating an instance with an environment in which it's being run (e.g. stage, prod)"
+  default     = "stage"
+}
+```
+terraform/stage/terraform.tfvars
+```json
+label_env = "stage"
+```
+terraform/stage/main.tf
+```json
+module "app" {
+  [...]
+  label_env           = "${var.label_env}"
+}
+
+module "db" {
+  [...]
+  label_env       = "${var.label_env}"
+}
+
+```
+
+Теперь остаётся только добавить поддержку метки в конфигурацию inventory plugin в Ansible:
+ansible/environments/prod/inventory_gcp.yml
+```yaml
+filters:
+  - labels.env = prod
+``` 
+ansible/environments/stage/inventory_gcp.yml
+```yaml
+filters:
+  - labels.env = stage
+``` 
+
+Проверяем (для тестов я специально app поместил в stage, а db - в prod):
+```bash
+ibeliako@dev:~/devops/git/weisdd_infra/ansible$ gcloud compute instances describe reddit-app-0 | grep labels -A 2
+labels:
+  ansible_group: app
+  env: stage
+
+ibeliako@dev:~/devops/git/weisdd_infra/ansible$ ansible-inventory --graph
+@all:
+  |--@app:
+  |  |--reddit-app-0
+  |--@ungrouped:
+
+ibeliako@dev:~/devops/git/weisdd_infra/ansible$ gcloud compute instances describe reddit-db | grep labels -A 2
+labels:
+  ansible_group: db
+  env: prod
+  
+ibeliako@dev:~/devops/git/weisdd_infra/ansible$ ansible-inventory -i environments/prod/inventory_gcp.yml --graph
+@all:
+  |--@db:
+  |  |--reddit-db
+  |--@ungrouped:
+```
+
+### Задание с ** (стр. 56-57)
+Задание:
+В предыдущих ДЗ вы уже использовали TravisCI. Теперь настройте его для контроля состояния вашего инфраструктурного
+репозитория.
+Необходимо, чтобы для коммитов в master и PR выполнялись как минимум эти действия:
+* packer validate для всех шаблонов
+* terraform validate и tflint для окружений stage и prod
+* ansible-lint для плейбуков Ansible
+* в README.md добавлен бейдж с статусом билда
+Из секции before_install нельзя удалять секцию наших тестов otus-homeworks.
+
+Решение:
+Поскольку otus использует inspec для проверки ДЗ, я решил его тоже опробовать.
+Итак, в репозитории weisdd_infra был создан каталог travisci: 
+```bash
+ibeliako@dev:~/devops/git/weisdd_infra$ tree travisci/
+travisci/
+├── run_tests_in_docker.sh
+└── tests
+    ├── controls
+    │   ├── ansible.rb
+    │   ├── packer.rb
+    │   └── terraform.rb
+    ├── inspec.yml
+    └── run_tests.sh
+```
+Здесь:
+* travisci/run_tests_in_docker.sh - основной скрипт для TravisCI - будет передавать команды в контейнер с тестами;
+* travisci/tests/controls/*.rb - тесты для соответствующих приложения
+  - ansible.rb
+  - packer.rb
+  - terraform.rb
+* travisci/tests/inspec.yml - конфигурационный файл для inspec - в данном случае, бесполезен;
+* travisci/tests/run_tests.sh - скрипт, непосредственно запускающий inspec.
+
+Поскольку скрипт от otus для проверки ДЗ (https://raw.githubusercontent.com/express42/otus-homeworks/2019-02/run.sh) создаёт контейнер с нужным софтом и клонирует мой репозиторий, никаких особенных шаманств в travisci/run_tests_in_docker.sh описывать не нужно - достаточно лишь запустить исполнение travisci/tests/run_tests.sh:
+travisci/run_tests_in_docker.sh
+```bash
+#!/usr/bin/env bash
+HOMEWORK_RUN=./travisci/tests/run_tests.sh
+
+if [ -f $HOMEWORK_RUN ]; then
+  echo "Run tests (linters, validators)"
+  docker exec -e USER=appuser hw-test $HOMEWORK_RUN
+else
+  echo "We don't have any tests"
+  exit 0
+fi
+```
+От travisci/tests/run_tests.sh требуется следующее:
+* создание иллюзии присутствия публичного ключа ssh, наличие которого будет проверять terraform;
+* установка ролей из ansible-galaxy (на случай, если из основного скрипта otus эта команда исчезнет);
+* запуск inspec.
+travisci/tests/run_tests.sh
+```bash
+#!/usr/bin/env bash
+set -e
+
+# Creating dummy keys for terraform linter
+touch ~/.ssh/appuser.pub ~/.ssh/appuser
+
+# Install requirements
+cd ansible && ansible-galaxy install -r environments/stage/requirements.yml && cd ..
+
+inspec exec travisci/tests/
+```
+В тесте для ansible мы будем проверять все плейбуки при помощи ansible-lint. Каталоги с ролями не проверяются как и указано в задании (btw, на данный момент они не соответствуют best practice, линтер негодует).
+travisci/tests/controls/ansible.rb
+```ruby
+# encoding: utf-8
+title 'Ansible playbooks validation'
+
+control 'ansible' do
+  impact 1
+  title 'Run ansible-lint'
+
+  files = command('find ansible/playbooks ! -name "inventory*.yml" -name "*.yml" -type f').stdout.split("\n")
+    files.each do |fname|
+      describe command("ansible-lint #{fname} --exclude=ansible/roles/jdauphant.nginx") do
+        its('stdout') { should eq '' }
+        its('stderr') { should eq '' }
+        its('exit_status') { should eq 0 }
+      end
+    end
+end
+```
+В тесте для packer проверяются json-файлы только в основном каталоге. При этом variables*.json исключаются.
+travisci/tests/controls/packer.rb
+```ruby
+# encoding: utf-8
+title 'Packer templates validation'
+
+control 'packer' do
+  impact 1
+  title 'Run packer validate'
+
+  files = command('find packer -maxdepth 1 ! -name "variables*.json" -name "*.json" -type f').stdout.split("\n")
+    files.each do |fname|
+      describe command("packer validate -var-file=packer/variables.json.example #{fname}") do
+        its('stdout') { should eq "Template validated successfully.\n" }
+        its('exit_status') { should eq 0 }
+      end
+    end
+end
+```
+В тесте для Terraform validate выполняется только для окружений prod и stage, modules покрыты только линтером (т.к. иначе бы потребовался terraform init и прочие сложности).
+travisci/tests/controls/terraform.rb
+```ruby
+# encoding: utf-8
+title 'Terraform validation'
+
+control 'terraform' do
+  impact 1
+  title 'Run packer validate'
+
+  modules = command('cd terraform/ && find modules/ -mindepth 1 -maxdepth 1 -type d').stdout.split("\n")
+  environments = ['stage/', 'prod/']
+    all_folders = modules + environments
+    all_folders.each do |fname|
+      unless modules.include?(fname)  # We don't expect to see terraform.tfvars.example in folders with modules, thus skip validation
+        describe command("cd terraform/#{fname} && terraform init -backend=false && terraform validate -var-file=terraform.tfvars.example") do
+          its('stdout') { should match "Terraform has been successfully initialized!" }
+            its('stderr') { should eq "" }
+            its('exit_status') { should eq 0 }
+        end
+      end
+      describe command("cd terraform/#{fname} && tflint --var-file=terraform.tfvars.example --deep -q") do
+        its('stdout') { should eq "" }
+        its('stderr') { should eq "" }
+        its('exit_status') { should eq 0 }
+      end
+    end
+end
+```
+
+Осталось только задать конфигурацию TravisCI в файле .travis.yml в корне репозитория.
+Как уже упоминалось выше, скрипт от otus создаёт контейнер и устанавливает нужный нам софт. Поэтому мы можем спокойно дождаться завершения его исполнения и уже после запустить наши тесты.
+
+Workflow TravisCI разбит на множество этапов (подробнее: https://docs.travis-ci.com/user/job-lifecycle/#breaking-the-build), мы воспользуемся "before_script":
+.travis.yml
+```yaml
+[...]
+before_install:
+- curl https://raw.githubusercontent.com/express42/otus-homeworks/2019-02/run.sh | bash
+before_script:
+- curl https://raw.githubusercontent.com/otus-devops-2019-02/weisdd_infra/ansible-3/travisci/run_tests_in_docker.sh | bash
+[...]
+```
+
+Последний штрих: добавляем inspec.lock (временный файл, который создает inspec) в .gitignore:
+```
+inspec.lock
+```
+
+Статус билда:
+[![Build Status](https://travis-ci.com/otus-devops-2019-02/weisdd_infra.svg?branch=ansible-3)](https://travis-ci.com/otus-devops-2019-02/weisdd_infra/branches)

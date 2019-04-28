@@ -21,6 +21,7 @@ module "app" {
   app_disk_image      = "${var.app_disk_image}"
   number_of_instances = "${var.number_of_instances}"
   database_url        = "${module.db.db_internal_ip}:27017"
+  label_env           = "${var.label_env}"
 }
 
 module "db" {
@@ -28,6 +29,7 @@ module "db" {
   public_key_path = "${var.public_key_path}"
   zone            = "${var.zone}"
   db_disk_image   = "${var.db_disk_image}"
+  label_env       = "${var.label_env}"
 }
 
 module "vpc" {
