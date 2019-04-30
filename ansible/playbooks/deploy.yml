@@ -2,6 +2,9 @@
 - name: Deploy application
   hosts: app
 #  tags: deploy-tag
+  vars:
+    deploy_user: "appuser"
+
   tasks:
     - name: Fetch the latest version of application code
       git:
